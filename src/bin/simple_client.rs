@@ -1,13 +1,12 @@
+use std::io::Write;
+
 use tokio::net::{TcpStream};
-use tokio::io::{ AsyncWriteExt};
-use tokio::io::{self,AsyncBufReadExt, BufStream,BufReader};
 use tokio::sync::mpsc::{self, Receiver, Sender};
-use serde_derive::{Serialize,Deserialize};
 use user_io::{manage_user_input,handle_server_connection};
 
 
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() {
 
     println!("[+] Attemtpting to connect");
@@ -28,13 +27,26 @@ async fn main() {
     
     let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel(32);
     
-    tokio::spawn(async move {
-        manage_user_input(tx).await;
-    });
+    print!("Please enter your name: ");
+    std::io::stdout().flush().unwrap();
 
-    tokio::spawn(async move {
+    let mut username = String::new();
+    std::io::stdin().read_line(&mut username).unwrap();
+
+    let i = tokio::spawn(async move {
         handle_server_connection(socket,rx).await;
     });
+    let h = tokio::spawn(async move {
+        println!("spawnning user input handler");
+        manage_user_input(tx,username).await;
+    });
+
+    
+
+  
+    i.await.unwrap();
+    h.await.unwrap();
+    
     
 }
 
